@@ -45,6 +45,7 @@ jobs:
             new_name=$(echo "$file" | sed -E 's/gh-ost-binary/gh-ost/;s/osx/darwin/;s/-[0-9]{14}//')
             mv "$file" "$new_name"
           done
+          mv "gh-ost-${{ inputs.version }}-1.x86_64.rpm" "gh-ost_${{ inputs.version }}_amd64.rpm"
           ls -lah
 
       - name: Create GitHub Release
