@@ -1,0 +1,65 @@
+name: Build and Release gh-ost
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.2.0)"
+        required: true
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies (fpm for deb/rpm)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
+
+      - name: Set up Go 1.23.5
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.5"
+
+      - name: Tag the release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Run build script
+        run: ./build.sh
+
+      - name: Rename tarballs
+        run: |
+          cd /tmp/gh-ost-release
+          for file in gh-ost-binary-*; do
+            [[ -f "$file" ]] || continue
+            new_name=$(echo "$file" | sed -E 's/gh-ost-binary/gh-ost/;s/osx/darwin/;s/-[0-9]{14}//')
+            mv "$file" "$new_name"
+          done
+          ls -lah
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          name: "v${{ inputs.version }}"
+          body: "Automated release for version ${{ inputs.version }}"
+          draft: false
+          prerelease: false
+          files: |
+            /tmp/gh-ost-release/gh-ost-linux-amd64.tar.gz
+            /tmp/gh-ost-release/gh-ost-linux-arm64.tar.gz
+            /tmp/gh-ost-release/gh-ost-darwin-amd64.tar.gz
+            /tmp/gh-ost-release/gh-ost-darwin-arm64.tar.gz
+            /tmp/gh-ost-release/gh-ost_*.deb
+            /tmp/gh-ost-release/gh-ost_*.rpm
